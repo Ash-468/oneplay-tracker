@@ -1,0 +1,67 @@
+name: OnePlay Availability Tracker
+
+on:
+  # Manual trigger button in GitHub Actions tab
+  workflow_dispatch:
+  # Runs periodically to ensure continuous coverage
+  schedule:
+    - cron: '*/20 * * * *'
+
+jobs:
+  track:
+    name: Run OnePlay Stock Monitor
+    runs-on: ubuntu-latest
+    concurrency:
+      group: oneplay-tracker-group
+      cancel-in-progress: false
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Restore previous state
+        uses: actions/cache@v4
+        with:
+          path: state.json
+          key: oneplay-state-${{ github.run_id }}
+          restore-keys: |
+            oneplay-state-
+
+      - name: Run Tracker
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TARGET_PLANS: "Haven HD, Haven 4K, Enthusiast, Prime, 799, 1099, 1299, 1599"
+          POLL_INTERVAL_SECONDS: "25"
+          POLL_JITTER_SECONDS: "3"
+          SEND_BACKUP_NOTIFICATION: "true"
+          BACKUP_DELAY_SECONDS: "180"
+          NOTIFY_ON_OUT_OF_STOCK: "true"
+          ALERT_ON_STARTUP: "false"
+          STATE_FILE: "state.json"
+          LOG_LEVEL: "INFO"
+        run: |
+          python -c "
+          import time, subprocess, sys
+          print('Starting OnePlay continuous tracker...')
+          p = subprocess.Popen(['python', 'tracker.py'])
+          # Run for 20 minutes (1200 seconds)
+          try:
+              time.sleep(1200)
+          except KeyboardInterrupt:
+              pass
+          p.terminate()
+          p.wait()
+          print('Cycle completed cleanly. State saved.')
+          "
+
+      - name: Save updated state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: state.json
+          key: oneplay-state-${{ github.run_id }}

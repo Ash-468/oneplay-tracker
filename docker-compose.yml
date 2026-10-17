@@ -1,0 +1,22 @@
+services:
+  oneplay-tracker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oneplay-tracker
+    restart: unless-stopped
+    env_file:
+      - .env
+    # Enforce lightweight resource limits per spec (<50MB RAM)
+    deploy:
+      resources:
+        limits:
+          memory: 50M
+          cpus: "0.20"
+        reservations:
+          memory: 20M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

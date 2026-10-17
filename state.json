@@ -1,0 +1,30 @@
+{
+  "Gamer's Haven:Haven HD:30d": {
+    "status": "SOLD_OUT",
+    "in_stock_notified": false,
+    "backup_notified": false,
+    "available_since": null,
+    "last_updated": 1792253106.3949907
+  },
+  "Gamer's Haven:Haven 4K:30d": {
+    "status": "SOLD_OUT",
+    "in_stock_notified": false,
+    "backup_notified": false,
+    "available_since": null,
+    "last_updated": 1792253106.3949907
+  },
+  "OneSpace:Prime:30d": {
+    "status": "SOLD_OUT",
+    "in_stock_notified": false,
+    "backup_notified": false,
+    "available_since": null,
+    "last_updated": 1792253106.3949907
+  },
+  "OneSpace:Enthusiast:30d": {
+    "status": "SOLD_OUT",
+    "in_stock_notified": false,
+    "backup_notified": false,
+    "available_since": null,
+    "last_updated": 1792253106.3949907
+  }
+}

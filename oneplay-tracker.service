@@ -1,0 +1,28 @@
+[Unit]
+Description=OnePlay Live Subscription Availability Tracker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nobody
+Group=nogroup
+WorkingDirectory=/opt/oneplay-tracker
+ExecStart=/usr/bin/python3 /opt/oneplay-tracker/tracker.py --env-file /opt/oneplay-tracker/.env
+Restart=always
+RestartSec=10
+KillMode=process
+TimeoutStopSec=15
+
+# Security hardening
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
