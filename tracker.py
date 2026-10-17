@@ -161,6 +161,10 @@ class TrackerConfig:
 
     def is_target(self, plan: "PlanInfo") -> bool:
         """Checks if plan matches target filter by plan name, category, or price."""
+        # Ensure we only track Indian INR tiers
+        if plan.currency.upper() != "INR":
+            return False
+
         if self.track_all:
             return True
         name_lower = plan.plan_name.strip().lower()
@@ -222,13 +226,14 @@ class PlanInfo:
     def format_price(self) -> str:
         if self.price is None:
             return "N/A"
+        sym = "₹" if self.currency == "INR" else "$"
         try:
             num = float(self.price)
             if num.is_integer():
-                return f"₹{int(num):,} {self.currency}"
-            return f"₹{num:,.2f} {self.currency}"
+                return f"{sym}{int(num):,} {self.currency}"
+            return f"{sym}{num:,.2f} {self.currency}"
         except (ValueError, TypeError):
-            return f"{self.price} {self.currency}"
+            return f"{sym}{self.price} {self.currency}"
 
 
 # ---------------------------------------------------------------------------
@@ -575,6 +580,10 @@ class OnePlayClient:
             "Origin": "https://www.oneplay.in",
             "Referer": "https://www.oneplay.in/",
             "Accept": "application/json, text/plain, */*",
+            # Force Indian catalog on international / US cloud runners (GitHub Actions, AWS, Azure)
+            "X-Forwarded-For": "49.37.128.1",
+            "CF-IPCountry": "IN",
+            "Client-IP": "49.37.128.1",
         }
 
         if self.cached_etag:
