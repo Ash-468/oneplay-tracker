@@ -742,49 +742,38 @@ class OnePlayTracker:
             key = plan.unique_key
             current_status = plan.status
             rec = self.state_mgr.get_plan_state(key)
+            previous_status = rec.get("status", STATUS_SOLD_OUT) if rec else STATUS_SOLD_OUT
 
-            # Cold startup evaluation
-            if rec is None:
-                status_emoji = "🟢 AVAILABLE" if plan.is_available else "🔴 SOLD OUT"
-                logging.info(
-                    "[Initial State] %s (%s) is currently %s [%s]",
-                    plan.plan_name,
-                    plan.category,
-                    status_emoji,
-                    plan.format_price(),
-                )
-
-                if self.first_run and self.config.alert_on_startup and plan.is_available:
-                    logging.info(
-                        "[Startup Alert] ALERT_ON_STARTUP enabled. Triggering drop alert for %s!",
+            # If the plan is in stock, ensure the user has been notified
+            if current_status == STATUS_AVAILABLE:
+                # If cold startup record was missing
+                if rec is None:
+                    logging.warning(
+                        "🎉 [DROP ALERT] %s (%s) is AVAILABLE on startup! Triggering alert!",
                         plan.plan_name,
+                        plan.category,
                     )
                     if not dry_run:
                         self.dispatcher.dispatch(plan, ALERT_IN_STOCK)
                     self.state_mgr.set_initial_state(key, current_status, notified=True, now=now)
-                else:
-                    self.state_mgr.set_initial_state(key, current_status, notified=False, now=now)
-                continue
+                    continue
 
-            previous_status = rec.get("status", STATUS_SOLD_OUT)
+                # If previously marked SOLD_OUT, or never received in-stock notification
+                if previous_status == STATUS_SOLD_OUT or not rec.get("in_stock_notified", False):
+                    logging.warning(
+                        "🎉 [EDGE TRANSITION] %s (%s) is now AVAILABLE! Triggering drop alert!",
+                        plan.plan_name,
+                        plan.category,
+                    )
+                    if not dry_run:
+                        self.dispatcher.dispatch(plan, ALERT_IN_STOCK)
+                    else:
+                        logging.info("[Dry Run] Skipped network dispatch for %s.", plan.plan_name)
 
-            # Edge transition: SOLD_OUT -> AVAILABLE
-            if previous_status == STATUS_SOLD_OUT and current_status == STATUS_AVAILABLE:
-                logging.warning(
-                    "🎉 [EDGE TRANSITION] %s (%s) is now AVAILABLE! Triggering drop alert!",
-                    plan.plan_name,
-                    plan.category,
-                )
-                if not dry_run:
-                    self.dispatcher.dispatch(plan, ALERT_IN_STOCK)
-                else:
-                    logging.info("[Dry Run] Skipped network dispatch for %s.", plan.plan_name)
+                    self.state_mgr.mark_in_stock(key, now=now)
 
-                self.state_mgr.mark_in_stock(key, now=now)
-
-            # Continuous availability: check for single backup notification
-            elif previous_status == STATUS_AVAILABLE and current_status == STATUS_AVAILABLE:
-                if self.config.send_backup_notification and not rec.get("backup_notified", False):
+                # Continuous availability: check for single backup notification
+                elif self.config.send_backup_notification and not rec.get("backup_notified", False):
                     available_since = rec.get("available_since") or now
                     elapsed = now - float(available_since)
                     if elapsed >= self.config.backup_delay_seconds:
@@ -797,27 +786,39 @@ class OnePlayTracker:
                             self.dispatcher.dispatch(plan, ALERT_BACKUP)
                         self.state_mgr.mark_backup_sent(key, now=now)
 
-            # Edge transition: AVAILABLE -> SOLD_OUT
-            elif previous_status == STATUS_AVAILABLE and current_status == STATUS_SOLD_OUT:
-                logging.info(
-                    "🔻 [State Flip] %s (%s) went OUT OF STOCK (AVAILABLE -> SOLD_OUT).",
-                    plan.plan_name,
-                    plan.category,
-                )
-                duration_seconds = self.state_mgr.mark_sold_out(key, now=now)
-
-                if self.config.notify_on_out_of_stock:
+            # Plan is SOLD OUT
+            else:
+                if rec is None:
                     logging.info(
-                        "Dispatched Out-of-Stock alert for %s (was available for %s).",
+                        "[Initial State] %s (%s) is currently 🔴 SOLD OUT [%s]",
                         plan.plan_name,
-                        NotificationDispatcher.format_duration(duration_seconds),
+                        plan.category,
+                        plan.format_price(),
                     )
-                    if not dry_run:
-                        self.dispatcher.dispatch(
-                            plan,
-                            ALERT_OUT_OF_STOCK,
-                            duration_seconds=duration_seconds,
+                    self.state_mgr.set_initial_state(key, current_status, notified=False, now=now)
+                    continue
+
+                # Edge transition: AVAILABLE -> SOLD_OUT
+                if previous_status == STATUS_AVAILABLE:
+                    logging.info(
+                        "🔻 [State Flip] %s (%s) went OUT OF STOCK (AVAILABLE -> SOLD_OUT).",
+                        plan.plan_name,
+                        plan.category,
+                    )
+                    duration_seconds = self.state_mgr.mark_sold_out(key, now=now)
+
+                    if self.config.notify_on_out_of_stock:
+                        logging.info(
+                            "Dispatched Out-of-Stock alert for %s (was available for %s).",
+                            plan.plan_name,
+                            NotificationDispatcher.format_duration(duration_seconds),
                         )
+                        if not dry_run:
+                            self.dispatcher.dispatch(
+                                plan,
+                                ALERT_OUT_OF_STOCK,
+                                duration_seconds=duration_seconds,
+                            )
 
         self.first_run = False
 
