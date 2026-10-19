@@ -592,7 +592,7 @@ class OnePlayClient:
         req = urllib.request.Request(self.config.api_url, headers=headers, method="GET")
 
         try:
-            with urllib.request.urlopen(req, context=self.ssl_context, timeout=10) as resp:
+            with urllib.request.urlopen(req, context=self.ssl_context, timeout=20) as resp:
                 etag = resp.headers.get("ETag")
                 if etag:
                     self.cached_etag = etag.strip()
@@ -613,8 +613,8 @@ class OnePlayClient:
                 logging.warning("HTTP Error %d from OnePlay API: %s", e.code, e.reason)
                 return e.code, None
 
-        except (urllib.error.URLError, TimeoutError, ssl.SSLError, ConnectionError) as e:
-            logging.error("Network error while connecting to OnePlay API: %s", e)
+        except (TimeoutError, urllib.error.URLError, ssl.SSLError, ConnectionError) as e:
+            logging.warning("Transient network blip / slow response from OnePlay API (%s). Retrying cleanly in 10s...", e)
             return -1, None
         except Exception as e:
             logging.error("Unexpected error in fetch_plans: %s", e)
